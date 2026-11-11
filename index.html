@@ -578,7 +578,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const db = getFirestore(app);
-let inboxUser = null, unsubs = [], inboxDocs = [], inboxTab = 'unread';
+let inboxUser = null, unsubs = [], inboxDocs = [], inboxTab = 'unread', openKey = null;
 let dmDocs = [], bcDocs = [], bcState = {}, welcomeState = null;
 
 function esc(s){
@@ -611,7 +611,9 @@ function renderInbox(){
   $('tabRead').textContent = 'Read' + (read.length ? ' (' + read.length + ')' : '');
   $('tabUnread').classList.toggle('active', inboxTab === 'unread');
   $('tabRead').classList.toggle('active', inboxTab === 'read');
-  const showing = inboxTab === 'unread' ? unread : read;
+  const showing = inboxDocs.filter(function(d){
+    return inboxTab === 'unread' ? (!d.data.read || d.key === openKey) : !!d.data.read;
+  });
   if (!showing.length){
     list.innerHTML = '<div class="inbox-empty">' + (inboxTab === 'unread'
       ? 'No unread messages.<br>New messages from LegLock will land here.'
@@ -620,7 +622,7 @@ function renderInbox(){
   }
   list.innerHTML = showing.map(function(d){
     const m = d.data, isUnread = !m.read;
-    return '<div class="msg' + (isUnread ? ' unread' : '') + '" data-key="' + d.key + '">' +
+    return '<div class="msg' + (isUnread ? ' unread' : '') + (d.key === openKey ? ' open' : '') + '" data-key="' + d.key + '">' +
       '<div class="msg-head"><span class="msg-from">' + (isUnread ? '<span class="dot"></span>' : '') + esc(m.fromName || m.fromEmail || 'LegLock') + '</span>' + (d.source === 'bc' ? '<span class="msg-tag">Broadcast</span>' : (d.source === 'welcome' ? '<span class="msg-tag">Welcome</span>' : '')) +
       '<span class="msg-time">' + esc(fmtTime(m.createdAt)) + '</span></div>' +
       '<div class="msg-subject">' + esc(m.subject || '(no subject)') + '</div>' +
@@ -632,12 +634,15 @@ function renderInbox(){
     el.addEventListener('click', async function(e){
       if (e.target.closest('[data-del]')) return;
       const found = inboxDocs.find(function(d){ return d.key === el.getAttribute('data-key'); });
-      if (found && !found.data.read){
+      if (!found) return;
+      if (openKey === found.key){ openKey = null; renderInbox(); return; }
+      openKey = found.key;
+      if (!found.data.read){
         found.data.read = true;
         renderInbox();
         try { await markEntryRead(found); } catch(_e) {}
       } else {
-        el.classList.toggle('open');
+        renderInbox();
       }
     });
   });
@@ -750,8 +755,8 @@ onAuthStateChanged(auth, function(user){
   else { stopInbox(); }
 });
 
-$('tabUnread').addEventListener('click', function(){ inboxTab = 'unread'; renderInbox(); });
-$('tabRead').addEventListener('click', function(){ inboxTab = 'read'; renderInbox(); });
+$('tabUnread').addEventListener('click', function(){ inboxTab = 'unread'; openKey = null; renderInbox(); });
+$('tabRead').addEventListener('click', function(){ inboxTab = 'read'; openKey = null; renderInbox(); });
 $('headerInboxBtn').addEventListener('click', function(){
   $('inboxSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
