@@ -602,7 +602,7 @@ import {
 
 const db = getFirestore(app);
 let inboxUser = null, unsubs = [], inboxDocs = [], inboxTab = 'unread', openKey = null;
-let dmDocs = [], bcDocs = [], bcState = {}, welcomeState = null;
+let dmDocs = [], bcDocs = [], bcState = {}, welcomeState = null, welcomeDoc = null;
 
 function esc(s){
   return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
@@ -746,8 +746,6 @@ function tsVal(ts){
   const t = new Date(ts).getTime();
   return isNaN(t) ? 0 : t;
 }
-const WELCOME_SUBJECT = 'Welcome to LegLock';
-const WELCOME_BODY = 'Thanks for creating your LegLock account — this inbox is where messages from LegLock will land: announcements, updates and anything sent to you directly.\n\nBroadcasts to everyone are tagged “Broadcast”. Tap a message to read it — it moves to your Read section — and you can delete messages any time.\n\nLegLock is a sports statistics and research tool. Nothing here is betting advice, and past hit rates don’t guarantee future results.';
 function buildInbox(){
   const merged = [];
   dmDocs.forEach(function(d){ merged.push({ key: 'dm:' + d.id, id: d.id, source: 'dm', data: d.data }); });
@@ -757,11 +755,15 @@ function buildInbox(){
     merged.push({ key: 'bc:' + d.id, id: d.id, source: 'bc',
       data: Object.assign({}, d.data, { read: !!st.read }) });
   });
-  if (welcomeState !== null && !welcomeState.welcomeHidden && inboxUser){
-    let created = null;
-    try { created = inboxUser.metadata && inboxUser.metadata.creationTime ? new Date(inboxUser.metadata.creationTime) : null; } catch(_e) {}
+  if (welcomeDoc && welcomeState !== null && !welcomeState.welcomeHidden && inboxUser){
+    let created = welcomeDoc.createdAt || null;
+    if (!created){
+      try { created = inboxUser.metadata && inboxUser.metadata.creationTime ? new Date(inboxUser.metadata.creationTime) : null; } catch(_e) {}
+    }
     merged.push({ key: 'welcome', id: 'welcome', source: 'welcome', data: {
-      fromName: 'LegLock', subject: WELCOME_SUBJECT, body: WELCOME_BODY,
+      fromName: welcomeDoc.fromName || 'LegLock',
+      subject: welcomeDoc.subject || '',
+      body: welcomeDoc.body || '',
       createdAt: created, read: !!welcomeState.welcomeRead
     }});
   }
@@ -793,7 +795,11 @@ function startInbox(user){
       bcState = {};
       snap.docs.forEach(function(d){ const s = d.data(); if (s.announcementId) bcState[s.announcementId] = s; });
       buildInbox();
-    }, inboxError)
+    }, inboxError),
+    onSnapshot(doc(db, 'appMessages', 'welcome'), function(snap){
+      welcomeDoc = snap.exists() ? snap.data() : null;
+      buildInbox();
+    }, function(){ welcomeDoc = null; })
   ];
   getDoc(doc(db, 'userState', user.uid)).then(function(snap){
     welcomeState = snap.exists() ? snap.data() : {};
@@ -805,7 +811,7 @@ function startInbox(user){
 }
 function stopInbox(){
   unsubs.forEach(function(u){ try { u(); } catch(_e) {} });
-  unsubs = []; dmDocs = []; bcDocs = []; bcState = {}; inboxDocs = []; welcomeState = null;
+  unsubs = []; dmDocs = []; bcDocs = []; bcState = {}; inboxDocs = []; welcomeState = null; welcomeDoc = null;
   const s = $('inboxSection'); if (s) s.classList.remove('open');
   const hb = $('headerInboxBtn'); if (hb) hb.style.display = 'none';
 }
