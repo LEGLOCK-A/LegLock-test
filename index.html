@@ -14,6 +14,7 @@
     --silver:#9aa39c; --error:#ff8a75; --radius:18px;
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html, body, button, input, select, textarea, a, .msg{touch-action:manipulation}
   html,body{margin:0;padding:0}
   body{
     font-family:"Sofia Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
@@ -651,7 +652,7 @@ function renderInbox(){
       '<span class="msg-time">' + esc(fmtTime(m.createdAt)) + '</span></div>' +
       '<div class="msg-subject">' + esc(m.subject || '(no subject)') + '</div>' +
       '<div class="msg-body">' + esc(m.body || '') + '</div>' +
-      '<div class="msg-actions"><button type="button" class="msg-del" data-toggle-read="' + d.key + '">' + (m.read ? 'Mark as unread' : 'Mark as read') + '</button><button type="button" class="msg-del" data-del="' + d.key + '">Delete</button></div>' +
+      '<div class="msg-actions"><button type="button" class="msg-del" data-toggle-read="' + d.key + '">' + (inboxTab === 'unread' ? 'Mark as read' : 'Mark as unread') + '</button><button type="button" class="msg-del" data-del="' + d.key + '">Delete</button></div>' +
     '</div>';
   }).join('');
   list.querySelectorAll('.msg').forEach(function(el){
@@ -676,16 +677,21 @@ function renderInbox(){
       const found = inboxDocs.find(function(d){ return d.key === btn.getAttribute('data-toggle-read'); });
       if (!found) return;
       try {
-        if (found.data.read){
+        if (inboxTab === 'unread'){
+          openKey = null;
+          if (!found.data.read){
+            found.data.read = true;
+            renderInbox();
+            await markEntryRead(found);
+          } else {
+            renderInbox();
+          }
+          showToast('<b>Marked as read.</b>');
+        } else {
           found.data.read = false;
           renderInbox();
           await markEntryUnread(found);
           showToast('<b>Marked as unread.</b>');
-        } else {
-          found.data.read = true;
-          renderInbox();
-          await markEntryRead(found);
-          showToast('<b>Marked as read.</b>');
         }
       } catch(err){ fail(err); }
     });
