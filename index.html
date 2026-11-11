@@ -49,11 +49,6 @@
   }
   /* ---------- layout ---------- */
   main{width:100%; max-width:430px; padding:20px 16px 32px; flex:1}
-  .mockup-note{
-    background:#292410; border:1px solid #57501f; color:#e9dfae;
-    border-radius:12px; padding:10px 12px; font-size:13.5px; line-height:1.45; margin-bottom:16px;
-  }
-  .mockup-note strong{color:#f5edbe}
   .card{
     background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
     padding:22px 18px 18px; box-shadow:0 8px 28px rgba(0,0,0,.45);
@@ -230,14 +225,6 @@
 </header>
 
 <main>
-  <div class="mockup-note">
-    <strong>This is the real version</strong> — connected to your Firebase project.
-    Accounts you create here are real and will show up in Firebase Console under
-    Authentication → Users. It needs internet, and sign-in only works when this page
-    is loaded from an approved website address (leglock.online) — opening the file
-    straight from your phone will be blocked by Firebase with an “unauthorized domain” message.
-  </div>
-
   <div class="toast" id="toast"></div>
 
   <div class="card" id="authCard">
@@ -644,12 +631,12 @@ function renderInbox(){
       '<span class="msg-time">' + esc(fmtTime(m.createdAt)) + '</span></div>' +
       '<div class="msg-subject">' + esc(m.subject || '(no subject)') + '</div>' +
       '<div class="msg-body">' + esc(m.body || '') + '</div>' +
-      '<div class="msg-actions"><button type="button" class="msg-del" data-del="' + d.key + '">Delete</button></div>' +
+      '<div class="msg-actions"><button type="button" class="msg-del" data-toggle-read="' + d.key + '">' + (m.read ? 'Mark as unread' : 'Mark as read') + '</button><button type="button" class="msg-del" data-del="' + d.key + '">Delete</button></div>' +
     '</div>';
   }).join('');
   list.querySelectorAll('.msg').forEach(function(el){
     el.addEventListener('click', async function(e){
-      if (e.target.closest('[data-del]')) return;
+      if (e.target.closest('[data-del]') || e.target.closest('[data-toggle-read]')) return;
       const found = inboxDocs.find(function(d){ return d.key === el.getAttribute('data-key'); });
       if (!found) return;
       if (openKey === found.key){ openKey = null; renderInbox(); return; }
@@ -661,6 +648,26 @@ function renderInbox(){
       } else {
         renderInbox();
       }
+    });
+  });
+  list.querySelectorAll('[data-toggle-read]').forEach(function(btn){
+    btn.addEventListener('click', async function(e){
+      e.stopPropagation();
+      const found = inboxDocs.find(function(d){ return d.key === btn.getAttribute('data-toggle-read'); });
+      if (!found) return;
+      try {
+        if (found.data.read){
+          found.data.read = false;
+          renderInbox();
+          await markEntryUnread(found);
+          showToast('<b>Marked as unread.</b>');
+        } else {
+          found.data.read = true;
+          renderInbox();
+          await markEntryRead(found);
+          showToast('<b>Marked as read.</b>');
+        }
+      } catch(err){ fail(err); }
     });
   });
   list.querySelectorAll('[data-del]').forEach(function(btn){
@@ -683,6 +690,17 @@ function renderInbox(){
       } catch(err){ fail(err); }
     });
   });
+}
+async function markEntryUnread(entry){
+  if (entry.source === 'welcome'){
+    if (welcomeState) welcomeState.welcomeRead = false;
+    await setDoc(doc(db, 'userState', inboxUser.uid), { welcomeRead: false }, { merge: true });
+  } else if (entry.source === 'bc'){
+    await setDoc(doc(db, 'announcementState', inboxUser.uid + '_' + entry.id),
+      { uid: inboxUser.uid, announcementId: entry.id, read: false }, { merge: true });
+  } else {
+    await updateDoc(doc(db, 'messages', entry.id), { read: false });
+  }
 }
 async function markEntryRead(entry){
   if (entry.source === 'welcome'){
