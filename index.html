@@ -648,7 +648,7 @@ function renderInbox(){
   list.innerHTML = showing.map(function(d){
     const m = d.data, isUnread = !m.read;
     return '<div class="msg' + (isUnread ? ' unread' : '') + (d.key === openKey ? ' open' : '') + '" data-key="' + d.key + '">' +
-      '<div class="msg-head"><span class="msg-from">' + (isUnread ? '<span class="dot"></span>' : '') + esc(m.fromName || m.fromEmail || 'LegLock') + '</span>' + (d.source === 'bc' ? '<span class="msg-tag">Broadcast</span>' : (d.source === 'welcome' ? '<span class="msg-tag">Welcome</span>' : '')) +
+      '<div class="msg-head"><span class="msg-from">' + (isUnread ? '<span class="dot"></span>' : '') + esc((m.fromName || m.fromEmail || 'LegLock') + (d.source === 'bc' ? ' · Broadcast' : '')) + '</span>' + (d.source === 'welcome' ? '<span class="msg-tag">Welcome</span>' : '') +
       '<span class="msg-time">' + esc(fmtTime(m.createdAt)) + '</span></div>' +
       '<div class="msg-subject">' + esc(m.subject || '(no subject)') + '</div>' +
       '<div class="msg-body">' + esc(m.body || '') + '</div>' +
